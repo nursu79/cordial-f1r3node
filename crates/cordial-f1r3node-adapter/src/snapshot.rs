@@ -74,7 +74,7 @@
 //! anchor, while `ordered_block_identities_with_cache` additionally computes
 //! ordered blocks.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use cordial_miners_core::blocklace::Blocklace;
 use cordial_miners_core::consensus::{
@@ -187,6 +187,13 @@ pub enum SnapshotError {
     /// Updating a shared ordered-output reader would rewrite a previously
     /// published finalized prefix.
     OrderedOutputPrefixViolation,
+
+    /// Two or more consensus blocks share one content hash. The host snapshot
+    /// format keys blocks by content hash alone and cannot represent both.
+    ContentHashAmbiguity {
+        content_hash: [u8; 32],
+        creators: Vec<NodeId>,
+    },
 }
 
 /// Build a [`CasperSnapshot`] from the current blocklace state.
@@ -204,6 +211,25 @@ pub fn build_snapshot(
     shard_conf: CasperShardConf,
     shard_id: &str,
 ) -> Result<CasperSnapshot, SnapshotError> {
+    // Reject ambiguous content hashes: the host snapshot format keys blocks
+    // by content hash alone and cannot represent distinct blocks sharing a hash.
+    // This single check protects every hash-keyed field in the snapshot.
+    let mut creators_by_hash: BTreeMap<[u8; 32], BTreeSet<NodeId>> = BTreeMap::new();
+    for id in blocklace.dom() {
+        creators_by_hash
+            .entry(id.content_hash)
+            .or_default()
+            .insert(id.creator.clone());
+    }
+    for (content_hash, creators) in creators_by_hash {
+        if creators.len() >= 2 {
+            return Err(SnapshotError::ContentHashAmbiguity {
+                content_hash,
+                creators: creators.into_iter().collect(),
+            });
+        }
+    }
+
     // 1. Walk all blocks, decoding payloads as we go. We'll need the
     //    block_number per block for the height index and for max_block_num.
     let all_ids: Vec<BlockIdentity> = blocklace.dom().into_iter().cloned().collect();
