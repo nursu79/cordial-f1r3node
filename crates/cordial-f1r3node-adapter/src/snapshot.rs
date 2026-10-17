@@ -40,22 +40,17 @@
 //! ## Errors
 //!
 //! Construction returns [`SnapshotError`] if any block's payload fails to
-//! decode. Partial state is not returned — snapshots are all-or-nothing.
+//! decode or if multiple consensus blocks share a content hash. Partial
+//! state is not returned — snapshots are all-or-nothing.
 //!
-//! ## Known limitation: content-hash collisions
+//! ## Content-hash indexing policy
 //!
-//! The snapshot's `dag_set`, `block_number_map`, `height_map`, and
-//! `child_map` are keyed by `content_hash: [u8; 32]`. In the blocklace,
-//! `BlockIdentity` uses `(content_hash, creator, signature)` so two blocks
-//! with identical content but different creators can coexist — but they
-//! will collapse to one entry in the snapshot indices. This matters only
-//! when two validators sign over byte-identical `BlockContent`, which is
-//! rare in practice (payloads usually differ per block) but possible.
-//!
-//! The proper fix belongs to Phase 3.4 (crypto bridge): compute an
-//! f1r3node-style `block_hash` that mixes the creator into the hash, so
-//! distinct validators always produce distinct block hashes even over
-//! equal content.
+//! Host-facing snapshots are keyed by `content_hash: [u8; 32]`. In the
+//! blocklace, `BlockIdentity` names a block by its consensus identity
+//! `(content_hash, creator)`. Distinct consensus identities that share a
+//! content hash cannot be represented losslessly under content-hash-only
+//! indexing and are rejected with [`SnapshotError::ContentHashAmbiguity`].
+//! Internal finality and ordering operate on `(content_hash, creator)`.
 //!
 //! ## Single-validator fork awareness is shared across seams
 //!

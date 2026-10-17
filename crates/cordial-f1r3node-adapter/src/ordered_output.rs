@@ -140,6 +140,10 @@ impl OrderedFinalizedOutput {
 
     /// Return the ordered block content hashes as `Vec<Vec<u8>>`.
     ///
+    /// [`blocks`](Self::blocks) keeps full identities; this accessor is a
+    /// lossy content-hash projection. Consumers that must distinguish
+    /// creators should read [`blocks`](Self::blocks).
+    ///
     /// Convenience for callers that only need hash references (e.g., to
     /// compare against a prior output or to format for logging).
     pub fn block_hashes(&self) -> Vec<Vec<u8>> {
